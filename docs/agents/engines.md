@@ -821,3 +821,20 @@ Decided, and not to be re-litigated:
   provider id is from its source and unverified against a real file, and only
   the first entry of TablePlus's TLS dropdown is known; any other comes in as
   verify-full rather than something it may be stronger than.
+
+## JumpServer
+
+A MySQL or MariaDB profile can have its host, port, username and password
+issued by JumpServer (`src/db/jumpserver.rs`) instead of typed. It is a block on
+`ServerConfig`, not an `Engine`: `jumpserver::resolve` swaps the issued values in
+before the engine connects, so nothing below it knows JumpServer exists. The
+API key's secret is the profile's keychain password, never in `profiles.toml`.
+
+- **Tokens are cached by their `ttl`, process-wide**, because a profile's query,
+  cancel and reconnect are separate `open`s and each would otherwise cost a
+  token and an audit record. `ttl` is only the local reuse time; JumpServer
+  decides how long a token is honoured, so keep it the shorter of the two.
+- **`mysql::Connection::open` stores the resolved config**, so the `KILL QUERY`
+  connection reuses the same credentials rather than asking again.
+- Only the protocols in `Engine::jumpserver_protocol` are offered; others have
+  not been checked against what the gateway returns for them.

@@ -253,6 +253,7 @@ impl Profile {
             // profile written by an older build still loads with its buffer.
             open_query: None,
             ssh: server.and_then(|server| server.ssh.clone()),
+            jumpserver: server.and_then(|server| server.jumpserver.clone()),
             open_queries: self
                 .session
                 .queries

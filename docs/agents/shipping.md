@@ -60,17 +60,11 @@ the entry and its icon. For `dbdelve_dbdelve.desktop`, set
 A release is cut from the Actions tab: run `.github/workflows/release.yml` with
 **publish** ticked. The version comes from `Cargo.toml`, so bump it first: a
 version that is already tagged fails before anything builds, and a stable
-version must run from main. It builds, in parallel:
+version must run from main. It builds the macOS arm64 DMG on `macos-latest`:
+`dev/bundle.sh` with `DBDELVE_CHANNEL=release DBDELVE_SIGN_ID=-`, plus an
+`/Applications` symlink. The release carries no Linux or Windows builds.
 
-- Linux x86_64 and aarch64 tarballs and AppImages (`dev/package-linux.sh`,
-  `dev/package-appimage.sh`) on Ubuntu 22.04, never `ubuntu-latest`: glibc is
-  forward-compatible only, so the oldest runner is the oldest system the
-  release runs on;
-- the macOS DMG: `dev/bundle.sh` with `DBDELVE_CHANNEL=release DBDELVE_SIGN_ID=-`,
-  plus an `/Applications` symlink;
-- the Windows zip (`dev/package-windows.ps1`), unsigned.
-
-Only once every asset exists does it tag the commit `v$VERSION` and publish,
+Only once the DMG exists does it tag the commit `v$VERSION` and publish,
 then it rewrites `Casks/dbdelve.rb` in the `ShayanAbbas1/homebrew-dbdelve` tap
 through the `TAP_TOKEN` secret. A version with a hyphen (`0.2.0-rc.1`) is a
 pre-release, may run from any branch and leaves the cask alone. Unticked, the

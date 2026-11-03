@@ -35,16 +35,8 @@ xattr -dr com.apple.quarantine /Applications/DBDelve.app
 Don't skip the second line: the app isn't notarized, so macOS won't open it
 until the quarantine flag is cleared.
 
-**Linux** (x86_64 or aarch64): `yay -S dbdelve-bin` from the AUR, or the
-tarball or AppImage from [the latest release][releases].
-
-**Windows** (x86_64): unzip the zip from [the latest release][releases] and run
-`dbdelve.exe`.
-
-Updating, the `.dmg`, Linux requirements, building from source and where your
-data lives are all in [docs/install.md](docs/install.md).
-
-[releases]: https://github.com/ShayanAbbas1/dbdelve/releases/latest
+**Linux and Windows:** build from source. The steps, updating and where your
+data lives are in [docs/install.md](docs/install.md).
 
 ## Supported databases
 

@@ -52,43 +52,6 @@ jobs:
         env:
           PUBLISH: ${{ inputs.publish }}
 
-  linux:
-    needs: version
-    strategy:
-      matrix:
-        # 22.04, never ubuntu-latest: glibc is forward-compatible only, so a
-        # binary linked against a newer runner's glibc will not start on Ubuntu
-        # 22.04 or on Debian stable. The oldest runner we build on is the
-        # oldest system the release runs on.
-        runner: [ubuntu-22.04, ubuntu-22.04-arm]
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@v7
-
-      # The same list the README tells a Linux user to install before building
-      # from source. If CI needs something more, the README is wrong too.
-      - run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config cmake \
-            libfontconfig-dev libxkbcommon-dev libxkbcommon-x11-dev \
-            libwayland-dev libdbus-1-dev
-
-      - run: dev/package-linux.sh
-
-      # Second, not instead: the tarball installs a desktop entry and icons,
-      # the AppImage is one file that runs without installing anything, and
-      # the release carries both. Both come off the same `cargo build
-      # --release`, so this one is the packaging step alone.
-      - run: dev/package-appimage.sh
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: linux-${{ matrix.runner }}
-          path: |
-            target/linux/dbdelve-*.tar.gz
-            target/linux/dbdelve-*.AppImage
-          if-no-files-found: error
-
   macos:
     needs: version
     # arm64, which is all the cask installs on.
@@ -123,25 +86,8 @@ jobs:
           path: target/DBDelve-*.dmg
           if-no-files-found: error
 
-  windows:
-    needs: version
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      # The hosted image already has MSVC, the Windows SDK (GPUI's shaders)
-      # and rc.exe (the icon resource). If CI needs something more, the
-      # README is wrong too.
-      - run: powershell -File dev/package-windows.ps1
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: windows
-          path: target/windows/dbdelve-*.zip
-          if-no-files-found: error
-
   release:
-    needs: [version, linux, macos, windows]
+    needs: [version, macos]
     if: inputs.publish
     runs-on: ubuntu-latest
     steps:
@@ -151,20 +97,16 @@ jobs:
           path: dist
           merge-multiple: true
 
-      # Every file the release is supposed to carry is named here, so a build
-      # that quietly lost one fails before anything goes public rather than
-      # publishing a release that is missing it.
+      # The file the release is supposed to carry is named here, so a build that
+      # quietly lost it fails before anything goes public rather than publishing
+      # a release that is missing it.
       - run: |
-          for ASSET in "DBDelve-$VERSION.dmg" \
-            "dbdelve-$VERSION-linux-x86_64.tar.gz" "dbdelve-$VERSION-x86_64.AppImage" \
-            "dbdelve-$VERSION-linux-aarch64.tar.gz" "dbdelve-$VERSION-aarch64.AppImage" \
-            "dbdelve-$VERSION-windows-x86_64.zip"; do
-            if [[ ! -f "dist/$ASSET" ]]; then
-              echo "no $ASSET among the built assets" >&2
-              ls dist >&2
-              exit 1
-            fi
-          done
+          ASSET="DBDelve-$VERSION.dmg"
+          if [[ ! -f "dist/$ASSET" ]]; then
+            echo "no $ASSET among the built assets" >&2
+            ls dist >&2
+            exit 1
+          fi
           PRERELEASE_FLAG=()
           [[ "$PRERELEASE" == true ]] && PRERELEASE_FLAG=(--prerelease)
           # --target creates the tag on the commit that was built. A tag made

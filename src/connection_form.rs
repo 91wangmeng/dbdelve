@@ -15,8 +15,8 @@ use gpui_component::input::{InputEvent, InputState};
 use crate::{
     Workspace,
     db::{
-        ConnectionConfig, Engine, Fields, MongoConfig, ServerConfig, SnowflakeConfig, SshTunnel,
-        SslMode,
+        ConnectionConfig, Engine, Fields, JumpServer, MongoConfig, ServerConfig, SnowflakeConfig,
+        SshTunnel, SslMode,
     },
     explorer::Shortcuts,
     session::Profile,
@@ -55,6 +55,14 @@ pub(crate) struct ConnectionForm {
     pub(crate) ssh_port: Entity<InputState>,
     pub(crate) ssh_user: Entity<InputState>,
     pub(crate) ssh_identity_file: Entity<InputState>,
+    /// Off, the JumpServer fields are kept but not read, as the SSH ones are.
+    /// On, the password field holds the API key's secret.
+    pub(crate) jumpserver: bool,
+    pub(crate) jumpserver_url: Entity<InputState>,
+    pub(crate) jumpserver_asset: Entity<InputState>,
+    pub(crate) jumpserver_key: Entity<InputState>,
+    pub(crate) jumpserver_account: Entity<InputState>,
+    pub(crate) jumpserver_ttl: Entity<InputState>,
     /// What an account has that a server does not. `host`, `database` and
     /// `user` are shared with the server fields: they mean the same thing, and
     /// sharing them is what keeps a value typed under one engine there under the
@@ -229,6 +237,13 @@ impl ConnectionForm {
         let ssh_port = input("22", ssh_port);
         let ssh_user = input("Optional", ssh_user);
         let ssh_identity_file = input("SSH agent", ssh_identity_file);
+        let jumpserver = server.and_then(|server| server.jumpserver.as_ref());
+        let [js_url, js_asset, js_key, js_account, js_ttl] = jumpserver_fields(jumpserver);
+        let jumpserver_url = input("http://jumpserver.example", js_url);
+        let jumpserver_asset = input("Asset id", js_asset);
+        let jumpserver_key = input("API key id", js_key);
+        let jumpserver_account = input("Only one authorized", js_account);
+        let jumpserver_ttl = input("60", js_ttl);
         let account_name = cx.new(|cx| {
             InputState::new(window, cx)
                 .placeholder("Account identifier")
@@ -319,6 +334,12 @@ impl ConnectionForm {
             ssh_port,
             ssh_user,
             ssh_identity_file,
+            jumpserver: jumpserver.is_some(),
+            jumpserver_url,
+            jumpserver_asset,
+            jumpserver_key,
+            jumpserver_account,
+            jumpserver_ttl,
             account: account_name,
             private_key,
             warehouse,
@@ -570,10 +591,26 @@ impl ConnectionForm {
         let user = read(&self.user);
         let port = read(&self.port);
 
+        // A toggle left on under an engine that cannot use it is not in force.
+        let jumpserver = jumpserver_block(
+            self.jumpserver && self.engine.jumpserver_protocol().is_some(),
+            [
+                read(&self.jumpserver_url),
+                read(&self.jumpserver_asset),
+                read(&self.jumpserver_key),
+                read(&self.jumpserver_account),
+                read(&self.jumpserver_ttl),
+            ],
+        )?;
+
         // Blank database is the one the server signs the login into, which is
-        // what a profile that moves between databases starts on.
+        // what a profile that moves between databases starts on. JumpServer
+        // issues the host and the username, so neither is typed then.
         for (label, value) in [("Host", &host), ("Username", &user)] {
-            if value.is_empty() && (label == "Host" || required.contains(&label)) {
+            if jumpserver.is_none()
+                && value.is_empty()
+                && (label == "Host" || required.contains(&label))
+            {
                 return Err(format!("{label} is required."));
             }
         }
@@ -606,6 +643,7 @@ impl ConnectionForm {
                     read(&self.ssh_identity_file),
                 ],
             )?,
+            jumpserver,
             schema: None,
         })
     }
@@ -736,6 +774,48 @@ fn ssh_fields(ssh: Option<&SshTunnel>) -> [String; 4] {
         ssh.user,
         ssh.identity_file.unwrap_or_default(),
     ]
+}
+
+fn jumpserver_fields(jumpserver: Option<&JumpServer>) -> [String; 5] {
+    let jumpserver = jumpserver.cloned().unwrap_or_default();
+    [
+        jumpserver.url,
+        jumpserver.asset_id,
+        jumpserver.key_id,
+        jumpserver.account,
+        // Blank reads as the default, so only a profile that has one shows it.
+        if jumpserver.ttl == JumpServer::default().ttl {
+            String::new()
+        } else {
+            jumpserver.ttl.to_string()
+        },
+    ]
+}
+
+fn jumpserver_block(
+    on: bool,
+    [url, asset_id, key_id, account, ttl]: [String; 5],
+) -> Result<Option<JumpServer>, String> {
+    if !on {
+        return Ok(None);
+    }
+    let ttl = if ttl.is_empty() {
+        JumpServer::default().ttl
+    } else {
+        ttl.parse()
+            .map_err(|_| "Token reuse must be a whole number of seconds.".to_string())?
+    };
+    let jumpserver = JumpServer {
+        url,
+        asset_id,
+        key_id,
+        account,
+        ttl,
+    };
+    match jumpserver.error() {
+        Some(error) => Err(error.to_string()),
+        None => Ok(Some(jumpserver)),
+    }
 }
 
 /// Blank port, user and identity file defer to `~/.ssh/config`, which is what
@@ -968,6 +1048,29 @@ mod tests {
     }
 
     #[test]
+    fn a_jumpserver_survives_the_round_trip_through_the_form_fields() {
+        let saved = JumpServer {
+            url: "http://192.168.2.98".into(),
+            asset_id: "asset".into(),
+            key_id: "key".into(),
+            account: "root".into(),
+            ttl: 300,
+        };
+        assert_eq!(
+            jumpserver_block(true, jumpserver_fields(Some(&saved))),
+            Ok(Some(saved))
+        );
+        assert_eq!(jumpserver_block(false, jumpserver_fields(None)), Ok(None));
+        let blank_ttl = ["http://h", "a", "k", "", ""].map(String::from);
+        assert_eq!(
+            jumpserver_block(true, blank_ttl).map(|block| block.map(|block| block.ttl)),
+            Ok(Some(JumpServer::default().ttl))
+        );
+        let bad_ttl = ["http://h", "a", "k", "", "soon"].map(String::from);
+        assert!(jumpserver_block(true, bad_ttl).is_err());
+    }
+
+    #[test]
     fn the_summary_says_where_the_form_points_once_it_points_somewhere() {
         let at = |engine, srv, typed: &Typed| summary(engine, srv, typed);
         let server = Typed {
@@ -1134,6 +1237,7 @@ mod tests {
             root_certificate: None,
             statement_timeout: 0,
             ssh: None,
+            jumpserver: None,
             schema: None,
         };
         let typed = ConnectionConfig::Postgres(server("hunter2"));

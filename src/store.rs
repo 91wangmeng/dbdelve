@@ -7,7 +7,8 @@ use serde::de::{DeserializeSeed, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::db::{
-    DbError, EditTarget, Engine, ExplainMode, QueryResult, RelationKind, Row, SshTunnel, Stopped,
+    DbError, EditTarget, Engine, ExplainMode, JumpServer, QueryResult, RelationKind, Row, SshTunnel,
+    Stopped,
 };
 
 const PROFILES_FILE: &str = "profiles.toml";
@@ -138,6 +139,11 @@ pub struct StoredProfile {
     /// it: no password field, keys and ssh-agent only.
     #[serde(default)]
     pub ssh: Option<SshTunnel>,
+    /// Where host, port, user and password are issued from, or absent for a
+    /// profile that types them. A table, so after every scalar. The API key's
+    /// secret is the keychain password, never in here.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub jumpserver: Option<JumpServer>,
     /// The query buffers this profile had open, in strip order.
     #[serde(default)]
     pub open_queries: Vec<StoredQueryTab>,
@@ -2622,6 +2628,7 @@ user = "shayan"
                 mode: Some("full".into()),
                 confirmed: vec!["drop".into(), "truncate".into()],
                 open_query: None,
+                jumpserver: None,
                 ssh: None,
                 open_queries: Vec::new(),
                 open_objects: Vec::new(),
@@ -2674,6 +2681,7 @@ user = "shayan"
             mode: None,
             confirmed: Vec::new(),
             open_query: Some("daily".into()),
+            jumpserver: None,
             ssh: None,
             open_queries: Vec::new(),
             open_objects: vec![
@@ -2804,6 +2812,7 @@ open_objects = []
             mode: None,
             confirmed: Vec::new(),
             open_query: None,
+            jumpserver: None,
             ssh: None,
             open_queries: Vec::new(),
             open_objects: Vec::new(),
@@ -2965,6 +2974,7 @@ folder = "Hot"
     #[test]
     fn an_ssh_tunnel_with_every_field_survives_the_round_trip_through_toml() {
         let profile = StoredProfile {
+            jumpserver: None,
             ssh: Some(SshTunnel {
                 host: "dbdelve-bastion".into(),
                 port: Some(2222),
@@ -2990,6 +3000,7 @@ folder = "Hot"
     #[test]
     fn an_ssh_tunnel_with_only_a_host_survives_the_round_trip_through_toml() {
         let profile = StoredProfile {
+            jumpserver: None,
             ssh: Some(SshTunnel {
                 host: "dbdelve-bastion".into(),
                 port: None,
@@ -3016,6 +3027,7 @@ folder = "Hot"
     fn an_active_schema_survives_the_round_trip_through_toml_beside_a_tunnel() {
         let profile = StoredProfile {
             schema: Some(r#"Sales "EU""#.into()),
+            jumpserver: None,
             ssh: Some(SshTunnel {
                 host: "dbdelve-bastion".into(),
                 ..SshTunnel::default()
@@ -3081,6 +3093,7 @@ folder = "Hot"
             mode: None,
             confirmed: Vec::new(),
             open_query: None,
+            jumpserver: None,
             ssh: None,
             open_queries: Vec::new(),
             open_objects: vec![StoredObject {
@@ -3157,6 +3170,7 @@ folder = "Hot"
             mode: None,
             confirmed: Vec::new(),
             open_query: None,
+            jumpserver: None,
             ssh: None,
             open_queries: Vec::new(),
             open_objects: vec![StoredObject {
@@ -3219,6 +3233,7 @@ folder = "Hot"
             mode: None,
             confirmed: Vec::new(),
             open_query: None,
+            jumpserver: None,
             ssh: None,
             open_queries: Vec::new(),
             open_objects: Vec::new(),
@@ -3328,6 +3343,7 @@ open_objects = []
             mode: None,
             confirmed: Vec::new(),
             open_query: None,
+            jumpserver: None,
             ssh: None,
             open_queries: Vec::new(),
             open_objects: vec![StoredObject {
@@ -3450,6 +3466,7 @@ open_objects = []
                     mode: None,
                     confirmed: Vec::new(),
                     open_query: None,
+                    jumpserver: None,
                     ssh: None,
                     open_queries: Vec::new(),
                     open_objects: Vec::new(),
@@ -3482,6 +3499,7 @@ open_objects = []
                     mode: None,
                     confirmed: Vec::new(),
                     open_query: None,
+                    jumpserver: None,
                     ssh: None,
                     open_queries: Vec::new(),
                     open_objects: Vec::new(),
@@ -4111,6 +4129,7 @@ open_objects = []
             mode: None,
             confirmed: Vec::new(),
             open_query: Some("daily".into()),
+            jumpserver: None,
             ssh: None,
             open_queries: vec![
                 StoredQueryTab {
@@ -4472,6 +4491,7 @@ name = \"accounts\"
             mode: None,
             confirmed: Vec::new(),
             open_query: None,
+            jumpserver: None,
             ssh: None,
             open_queries: Vec::new(),
             open_objects: vec![
@@ -4584,6 +4604,7 @@ name = \"accounts\"
             mode: None,
             confirmed: Vec::new(),
             open_query: None,
+            jumpserver: None,
             ssh: None,
             open_queries: Vec::new(),
             open_objects: vec![object],

@@ -407,6 +407,12 @@ pub struct Connection {
 
 impl Connection {
     pub fn open(server: &ServerConfig, engine: Engine) -> Result<Self, DbError> {
+        // Kept resolved: the cancel connection reuses these credentials rather
+        // than asking JumpServer for another token.
+        let server = &super::jumpserver::resolve(
+            server,
+            engine.jumpserver_protocol().unwrap_or("mysql"),
+        )?;
         // Before the tunnel, which may have cost a hardware-key touch.
         if server.ssh.is_some() && server.sslmode == SslMode::VerifyFull {
             return Err(unverifiable_through_a_tunnel(server, engine));
@@ -1246,6 +1252,7 @@ mod tests {
                 sslmode: SslMode::default(),
                 root_certificate: None,
                 statement_timeout: 0,
+                jumpserver: None,
                 ssh: None,
                 schema: None,
             }
@@ -1425,6 +1432,7 @@ mod tests {
             host: "db.example.test".into(),
             sslmode: SslMode::VerifyFull,
             // Nothing that resolves: starting ssh at all would fail differently.
+            jumpserver: None,
             ssh: Some(crate::db::SshTunnel {
                 host: "dbdelve-nowhere.invalid".into(),
                 ..crate::db::SshTunnel::default()

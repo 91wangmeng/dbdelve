@@ -24,6 +24,7 @@ mod clickhouse;
 #[cfg(test)]
 mod conformance;
 mod duckdb;
+mod jumpserver;
 mod mongo;
 mod mssql;
 mod mysql;
@@ -38,6 +39,7 @@ mod xlsx;
 
 pub use duckdb::IN_MEMORY as DUCKDB_IN_MEMORY;
 
+pub use jumpserver::JumpServer;
 pub use mongo::MongoConfig;
 pub use snowflake::{SnowflakeConfig, account_identifier, normalize_host};
 #[cfg(test)]
@@ -321,6 +323,16 @@ impl Engine {
     /// `readPreference`, …), which outnumber any set of fields worth drawing.
     pub fn takes_options(self) -> bool {
         self.spec().takes_options
+    }
+
+    /// JumpServer's name for what this engine speaks, where a profile can have
+    /// its address and credentials issued by one; None where it cannot.
+    pub fn jumpserver_protocol(self) -> Option<&'static str> {
+        match self {
+            Self::MySql => Some("mysql"),
+            Self::MariaDb => Some("mariadb"),
+            _ => None,
+        }
     }
 
     /// Whether the host may instead be a DNS name whose SRV records list the
@@ -883,6 +895,7 @@ pub(super) fn server_from_url(url: &str, engine: &str) -> Result<ServerConfig, S
         // A URL has nowhere to say it; the form is where it is set.
         statement_timeout: 0,
         // Same reason: a URL has nowhere to say it either.
+        jumpserver: None,
         ssh: None,
         schema: None,
     })
@@ -961,6 +974,10 @@ pub struct ServerConfig {
     /// A local port forward to dial through instead of connecting to `host`
     /// directly. None is the ordinary direct connection.
     pub ssh: Option<SshTunnel>,
+    /// Where host, port, user and password come from instead of being typed,
+    /// resolved by [`jumpserver::resolve`] before an engine connects. `password`
+    /// then holds the API key's secret.
+    pub jumpserver: Option<JumpServer>,
     /// The schema unqualified names resolve in first, where
     /// [`Engine::picks_schema`]. None leaves the server's
     /// `search_path` alone.

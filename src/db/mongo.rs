@@ -217,6 +217,7 @@ pub fn config_from_url(url: &str) -> Result<MongoConfig, String> {
             root_certificate: root_certificate.filter(|_| sslmode.checks_certificate()),
             // A URL has nowhere to say either; the form is where they are set.
             statement_timeout: 0,
+            jumpserver: None,
             ssh: None,
             schema: None,
         },
@@ -2967,6 +2968,7 @@ mod tests {
                 sslmode,
                 // Nothing that resolves: starting ssh at all would fail
                 // differently.
+                jumpserver: None,
                 ssh: Some(SshTunnel {
                     host: "dbdelve-nowhere.invalid".into(),
                     ..SshTunnel::default()

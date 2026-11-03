@@ -337,7 +337,11 @@ impl Workspace {
                         field_row("user", "User", &form.user, bare(&form.user), t),
                         field_row(
                             "password",
-                            "Password",
+                            if form.jumpserver && form.engine.jumpserver_protocol().is_some() {
+                                "API secret"
+                            } else {
+                                "Password"
+                            },
                             &form.password,
                             bare(&form.password).mask_toggle(),
                             t,
@@ -440,6 +444,65 @@ impl Workspace {
                         .enumerate()
                         .map(|(index, row)| revealed(row, index, reveal)),
                 );
+            }
+            if form.engine.jumpserver_protocol().is_some() {
+                security.push(
+                    ui::option_row(
+                        "JumpServer",
+                        Some(
+                            "Host, username and password are issued by JumpServer for each \
+                             connection. The password field holds the API key secret."
+                                .into(),
+                        ),
+                        ui::switch("jumpserver", form.jumpserver, t)
+                            .on_click(cx.listener(Self::toggle_jumpserver)),
+                        t,
+                    )
+                    .into_any_element(),
+                );
+                if form.jumpserver {
+                    let nested = |id: &'static str,
+                                  label: &'static str,
+                                  input: &Entity<InputState>,
+                                  control: Input| {
+                        nested_field_row(layout::SPACE_MD, id, label, input, control, t)
+                    };
+                    security.extend(
+                        [
+                            nested(
+                                "jumpserver-url",
+                                "JumpServer URL",
+                                &form.jumpserver_url,
+                                mono_field(&form.jumpserver_url),
+                            ),
+                            nested(
+                                "jumpserver-asset",
+                                "Asset id",
+                                &form.jumpserver_asset,
+                                mono_field(&form.jumpserver_asset),
+                            ),
+                            nested(
+                                "jumpserver-key",
+                                "API key id",
+                                &form.jumpserver_key,
+                                mono_field(&form.jumpserver_key),
+                            ),
+                            nested(
+                                "jumpserver-account",
+                                "Account",
+                                &form.jumpserver_account,
+                                bare(&form.jumpserver_account),
+                            ),
+                            nested(
+                                "jumpserver-ttl",
+                                "Reuse token (s)",
+                                &form.jumpserver_ttl,
+                                bare(&form.jumpserver_ttl),
+                            ),
+                        ]
+                        .map(IntoElement::into_any_element),
+                    );
+                }
             }
         }
 
@@ -671,6 +734,31 @@ impl Workspace {
             form.needs_focus = Some(form.password.clone());
         }
         // A pass without the tunnel did not test it.
+        form.test = None;
+        cx.notify();
+    }
+
+    fn toggle_jumpserver(&mut self, _: &ClickEvent, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(form) = &mut self.form else {
+            return;
+        };
+        form.jumpserver = !form.jumpserver;
+        if form.jumpserver {
+            form.needs_focus = Some(form.jumpserver_url.clone());
+        } else if [
+            &form.jumpserver_url,
+            &form.jumpserver_asset,
+            &form.jumpserver_key,
+            &form.jumpserver_account,
+            &form.jumpserver_ttl,
+        ]
+        .iter()
+        .any(|input| input.focus_handle(cx).is_focused(window))
+        {
+            // The rows going take the focus with them.
+            form.needs_focus = Some(form.password.clone());
+        }
+        // A pass without JumpServer did not test it.
         form.test = None;
         cx.notify();
     }

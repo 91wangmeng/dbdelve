@@ -2309,6 +2309,7 @@ mod tests {
                 sslmode: SslMode::default(),
                 root_certificate: None,
                 statement_timeout: 0,
+                jumpserver: None,
                 ssh: None,
                 schema: None,
             }

@@ -2218,6 +2218,7 @@ fn stored_config(
                 root_certificate: stored.root_certificate.clone(),
                 statement_timeout: stored.statement_timeout.unwrap_or_default(),
                 ssh: stored.ssh.clone(),
+                jumpserver: stored.jumpserver.clone(),
                 schema: stored.schema.clone(),
             };
             match engine {
