@@ -117,7 +117,9 @@ pub fn resolve(server: &ServerConfig, protocol: &str) -> Result<ServerConfig, Db
         jumpserver.url, jumpserver.key_id, jumpserver.asset_id, jumpserver.account
     );
     let ttl = Duration::from_secs(u64::from(jumpserver.ttl));
-    let mut cache = CACHE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut cache = CACHE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let fresh = cache
         .get(&key)
         .filter(|cached| cached.issued.elapsed() < ttl)
@@ -201,10 +203,14 @@ fn issue(jumpserver: &JumpServer, secret: &str, protocol: &str) -> Result<Token,
         return Err(failure("This connection needs approval in JumpServer."));
     }
     let (Some(id), Some(value)) = (token["id"].as_str(), token["value"].as_str()) else {
-        return Err(failure("JumpServer returned an incomplete connection token."));
+        return Err(failure(
+            "JumpServer returned an incomplete connection token.",
+        ));
     };
     if id.is_empty() || value.is_empty() {
-        return Err(failure("JumpServer returned an incomplete connection token."));
+        return Err(failure(
+            "JumpServer returned an incomplete connection token.",
+        ));
     }
     let client = request(
         jumpserver,
@@ -309,7 +315,10 @@ fn request(
 ) -> Result<Value, DbError> {
     let date = http_date();
     let key = hmac::Key::new(hmac::HMAC_SHA256, secret.as_bytes());
-    let signature = STANDARD.encode(hmac::sign(&key, signing_string(method, path, &date).as_bytes()));
+    let signature = STANDARD.encode(hmac::sign(
+        &key,
+        signing_string(method, path, &date).as_bytes(),
+    ));
     let builder = Request::builder()
         .method(method)
         .uri(format!("{}{path}", jumpserver.url.trim_end_matches('/')))
@@ -375,8 +384,9 @@ mod tests {
 
     #[test]
     fn the_gateway_is_read_from_the_client_url_payload() {
-        let payload = STANDARD
-            .encode(r#"{"endpoint":{"host":"gw.example","port":33061},"asset":{"info":{"db_name":"app"}}}"#);
+        let payload = STANDARD.encode(
+            r#"{"endpoint":{"host":"gw.example","port":33061},"asset":{"info":{"db_name":"app"}}}"#,
+        );
         assert_eq!(
             parse_client_url(&format!("jms://{payload}")).unwrap(),
             ("gw.example".to_owned(), 33061, "app".to_owned())
@@ -390,7 +400,10 @@ mod tests {
     fn an_account_is_guessed_only_when_there_is_one() {
         assert_eq!(pick_account(&accounts(&["root"]), "").unwrap(), "root");
         assert!(pick_account(&accounts(&["root", "ro"]), "").is_err());
-        assert_eq!(pick_account(&accounts(&["root", "ro"]), "ro").unwrap(), "ro");
+        assert_eq!(
+            pick_account(&accounts(&["root", "ro"]), "ro").unwrap(),
+            "ro"
+        );
         assert!(pick_account(&accounts(&["root"]), "ro").is_err());
     }
 
@@ -404,7 +417,10 @@ mod tests {
         };
         assert_eq!(ok.error(), None);
         for url in ["192.168.2.98", "http://h/path", "http://", "https://u@h"] {
-            let bad = JumpServer { url: url.into(), ..ok.clone() };
+            let bad = JumpServer {
+                url: url.into(),
+                ..ok.clone()
+            };
             assert!(bad.error().is_some(), "{url}");
         }
     }

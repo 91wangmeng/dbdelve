@@ -409,10 +409,8 @@ impl Connection {
     pub fn open(server: &ServerConfig, engine: Engine) -> Result<Self, DbError> {
         // Kept resolved: the cancel connection reuses these credentials rather
         // than asking JumpServer for another token.
-        let server = &super::jumpserver::resolve(
-            server,
-            engine.jumpserver_protocol().unwrap_or("mysql"),
-        )?;
+        let server =
+            &super::jumpserver::resolve(server, engine.jumpserver_protocol().unwrap_or("mysql"))?;
         // Before the tunnel, which may have cost a hardware-key touch.
         if server.ssh.is_some() && server.sslmode == SslMode::VerifyFull {
             return Err(unverifiable_through_a_tunnel(server, engine));

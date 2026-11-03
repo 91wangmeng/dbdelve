@@ -7,8 +7,8 @@ use serde::de::{DeserializeSeed, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::db::{
-    DbError, EditTarget, Engine, ExplainMode, JumpServer, QueryResult, RelationKind, Row, SshTunnel,
-    Stopped,
+    DbError, EditTarget, Engine, ExplainMode, JumpServer, QueryResult, RelationKind, Row,
+    SshTunnel, Stopped,
 };
 
 const PROFILES_FILE: &str = "profiles.toml";
